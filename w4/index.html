@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>朋友對我的動態留言板</title>
+  <style>
+    /* ==========================================
+       1. CSS 變數與基礎設定 (奶油色系配色)
+       ========================================== */
+    :root {
+      --bg-color: #fcf8f2;         /* 柔和奶油底色 */
+      --card-bg: #ffffff;          /* 純白卡片背景 */
+      --primary-color: #d8a47f;    /* 奶茶主色 */
+      --accent-color: #e28743;     /* 焦糖點綴色 */
+      --text-main: #5c4b43;        /* 濃咖啡文字色 */
+      --text-sub: #9e8d85;         /* 淡咖啡次要字色 */
+      --shadow: 0 8px 20px rgba(216, 164, 127, 0.15);
+      --shadow-hover: 0 12px 28px rgba(216, 164, 127, 0.25);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text-main);
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    /* ==========================================
+       2. 頁面標頭 (Header)
+       ========================================== */
+    .header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .header h1 {
+      font-size: 2.2rem;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      color: var(--text-sub);
+      font-size: 1rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ==========================================
+       3. 載入中酷炫動畫 (Loader)
+       ========================================== */
+    #loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 0;
+    }
+
+    .loader-dots {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 1.2rem;
+    }
+
+    .dot {
+      width: 18px;
+      height: 18px;
+      background-color: var(--primary-color);
+      border-radius: 50%;
+      animation: bounce 0.6s infinite alternate;
+    }
+
+    .dot:nth-child(2) { animation-delay: 0.2s; background-color: var(--accent-color); }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      to {
+        transform: translateY(-16px);
+        opacity: 0.7;
+      }
+    }
+
+    .loading-text {
+      font-size: 1.1rem;
+      color: var(--text-main);
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    /* ==========================================
+       4. 瀑布流排版 (Masonry Layout)
+       ========================================== */
+    .masonry-grid {
+      column-count: 4;
+      column-gap: 1.5rem;
+      display: none; /* 載入完成後透過 JS 顯示 */
+    }
+
+    /* 響應式斷點設定 */
+    @media (max-width: 1100px) { .masonry-grid { column-count: 3; } }
+    @media (max-width: 768px)  { .masonry-grid { column-count: 2; } }
+    @media (max-width: 480px)  { .masonry-grid { column-count: 1; } }
+
+    /* ==========================================
+       5. 留言卡片樣式 (Message Card)
+       ========================================== */
+    .card {
+      break-inside: avoid;
+      margin-bottom: 1.5rem;
+      background-color: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(216, 164, 127, 0.2);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .card-author {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-badge {
+      font-size: 1.2rem;
+    }
+
+    .card-time {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    .card-content {
+      font-size: 0.98rem;
+      line-height: 1.6;
+      color: var(--text-main);
+      white-space: pre-wrap; /* 保持留言內容的換行格式 */
+      word-break: break-word;
+    }
+
+    /* 無資料狀態 */
+    .empty-state {
+      text-align: center;
+      color: var(--text-sub);
+      padding: 3rem;
+      font-size: 1.1rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- 標題區域 -->
+    <header class="header">
+      <h1>💌 悄悄話留言板</h1>
+      <p>收集來自朋友們的溫暖點滴</p>
+    </header>
+
+    <!-- 載入中動畫 -->
+    <div id="loading-state">
+      <div class="loader-dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="loading-text">讀取留言中...</div>
+    </div>
+
+    <!-- 瀑布流留言區域 -->
+    <main id="masonry-grid" class="masonry-grid"></main>
+
+    <!-- 無資料提示 -->
+    <div id="empty-state" class="empty-state">目前還沒有收到任何留言喔！</div>
+  </div>
+
+  <script>
+    // Google 試算表 CSV 網址
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS9xxRtAoJv8DGCgn6ZYB5Zc8WBkfBY9icwJtj2-Ogisz3QGcLgV5Jjo16pXvEV81Aml0MiZpiNTlzl/pub?output=csv';
+
+    // 隨機可愛貼紙
+    const EMOJIS = ['🍪', '☕', '🧸', '🥐', '🌷', '📜', '✨', '☁️', '🍮', '🥖'];
+
+    /**
+     * 標準安全的 CSV 解析器
+     * 能正確處理包含逗號與雙引號包裹換行的留言內容
+     */
+    function parseCSV(text) {
+      const lines = [];
+      let row = [];
+      let entry = '';
+      let insideQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const nextC = text[i + 1];
+
+        if (c === '"') {
+          if (insideQuotes && nextC === '"') {
+            entry += '"';
+            i++; // 跳過轉義引號
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+        } else if (c === ',' && !insideQuotes) {
+          row.push(entry.trim());
+          entry = '';
+        } else if ((c === '\r' || c === '\n') && !insideQuotes) {
+          if (c === '\r' && nextC === '\n') {
+            i++; // 處理 CRLF 換行
+          }
+          row.push(entry.trim());
+          if (row.length > 0 && row.some(cell => cell !== '')) {
+            lines.push(row);
+          }
+          row = [];
+          entry = '';
+        } else {
+          entry += c;
+        }
+      }
+
+      if (entry || row.length > 0) {
+        row.push(entry.trim());
+        lines.push(row);
+      }
+
+      return lines;
+    }
+
+    /**
+     * 時間格式化工具
+     */
+    function formatDate(timeString) {
+      if (!timeString) return '';
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return timeString; // 若無法解析直接返回原字串
+
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+
+      return `${month}/${day} ${hours}:${minutes}`;
+    }
+
+    /**
+     * 動態渲染卡片
+     */
+    function renderCards(messages) {
+      const grid = document.getElementById('masonry-grid');
+      grid.innerHTML = '';
+
+      messages.forEach(msg => {
+        // 解構取得欄位：時間戳記, 名字, 悄悄話
+        const [timestamp, name, content] = msg;
+
+        if (!name && !content) return; // 忽略空白資料
+
+        const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+        const formattedTime = formatDate(timestamp);
+
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">
+            <span class="card-author">
+              <span class="card-badge">${randomEmoji}</span>
+              ${escapeHTML(name || '無名氏')}
+            </span>
+            <span class="card-time">${escapeHTML(formattedTime)}</span>
+          </div>
+          <div class="card-content">${escapeHTML(content || '')}</div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    /**
+     * 防止 XSS 攻擊的字串安全轉換
+     */
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * 主載入流程
+     */
+    async function initMessageBoard() {
+      const loadingState = document.getElementById('loading-state');
+      const grid = document.getElementById('masonry-grid');
+      const emptyState = document.getElementById('empty-state');
+
+      try {
+        const response = await fetch(CSV_URL);
+        if (!response.ok) throw new Error('網路請求失敗');
+
+        const csvText = await response.text();
+        const parsedData = parseCSV(csvText);
+
+        // 去除表頭標題 (時間戳記, 名字, 悄悄話)
+        const messages = parsedData.slice(1);
+
+        loadingState.style.display = 'none';
+
+        if (messages.length === 0) {
+          emptyState.style.display = 'block';
+        } else {
+          renderCards(messages);
+          grid.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('讀取留言發生錯誤:', error);
+        loadingState.style.display = 'none';
+        emptyState.textContent = '❌ 留言載入失敗，請稍後再試。';
+        emptyState.style.display = 'block';
+      }
+    }
+
+    // 初始化運作
+    document.addEventListener('DOMContentLoaded', initMessageBoard);
+  </script>
+</body>
+</html>
